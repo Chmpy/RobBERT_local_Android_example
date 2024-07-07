@@ -1,0 +1,166 @@
+package com.example.robbert_local_example
+
+import Utils
+import android.os.Bundle
+import android.util.Log
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import org.tensorflow.lite.Interpreter
+import java.io.FileInputStream
+import java.nio.FloatBuffer
+import java.nio.LongBuffer
+import java.nio.MappedByteBuffer
+import java.nio.channels.FileChannel
+
+class MainActivity : ComponentActivity() {
+    private lateinit var tflite: Interpreter
+    private lateinit var vocab: Map<String, Int>
+    private val MAX_SEQUENCE_LENGTH = 128 // Match this with your model's expected input size
+    private val TAG = "MAIN_ACTIVITY"
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        Log.d(TAG, "Loading TFLite model and vocabulary")
+        // Load the TFLite model
+        tflite = Interpreter(loadModelFile("model.tflite"))
+
+        // Load the vocabulary
+        vocab = Utils.loadVocabulary(this, "vocab.json")
+
+        val attentionMaskTensor = tflite.getInputTensor(0)
+        val inputTensor = tflite.getInputTensor(1)
+        val outputTensor = tflite.getOutputTensor(0)
+        Log.d(TAG, "Input and output tensor details:")
+        Log.d(TAG, "Input tensor name: ${attentionMaskTensor.name()}")
+        Log.d(TAG, "Input tensor index: ${attentionMaskTensor.index()}")
+        Log.d(TAG, "Input tensor shape: ${attentionMaskTensor.shape().contentToString()}")
+        Log.d(TAG, "Input tensor data type: ${attentionMaskTensor.dataType()}")
+        Log.d(TAG, "Input tensor name: ${inputTensor.name()}")
+        Log.d(TAG, "Input tensor index: ${inputTensor.index()}")
+        Log.d(TAG, "Input tensor shape: ${inputTensor.shape().contentToString()}")
+        Log.d(TAG, "Input tensor data type: ${inputTensor.dataType()}")
+        Log.d(TAG, "Output tensor name: ${outputTensor.name()}")
+        Log.d(TAG, "Output tensor index: ${outputTensor.index()}")
+        Log.d(TAG, "Output tensor shape: ${outputTensor.shape().contentToString()}")
+        Log.d(TAG, "Output tensor data type: ${outputTensor.dataType()}")
+
+        setContent {
+            MaterialTheme {
+                MainScreen(::performInference)
+            }
+        }
+    }
+
+    private fun loadModelFile(modelName: String): MappedByteBuffer {
+        Log.d(TAG, "Loading model file: $modelName")
+        val fileDescriptor = assets.openFd(modelName)
+        val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
+        val fileChannel = inputStream.channel
+        val startOffset = fileDescriptor.startOffset
+        val declaredLength = fileDescriptor.declaredLength
+        Log.d(TAG, "Model file loaded successfully")
+        return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
+    }
+
+    private fun performInference(input: String): String {
+        Log.d(TAG, "Starting inference for input: $input")
+        val (processedInput, maskPosition) = Utils.preprocessInput(input)
+        Log.d(TAG, "Preprocessed input: $processedInput, Mask position: $maskPosition")
+
+        if (maskPosition == null) {
+            return "No mask token found in input"
+        }
+
+        var inputIds = Utils.tokenize(processedInput, vocab)
+
+        // Add start and end tokens
+        inputIds = listOf(vocab["<s>"] ?: 0) + inputIds + listOf(vocab["</s>"] ?: 0)
+
+        // Pad or truncate to MAX_SEQUENCE_LENGTH
+        inputIds = Utils.padOrTruncate(inputIds, MAX_SEQUENCE_LENGTH, vocab["<pad>"] ?: 1)
+
+        // Create attention mask
+        val attentionMask = Utils.createAttentionMask(inputIds.size)
+
+        // Convert input to LongBuffer
+        val inputBuffer = LongBuffer.wrap(inputIds.map { it.toLong() }.toLongArray())
+        Log.d(TAG, "Input details: ${inputBuffer.array().contentToString()}")
+
+        // Convert attention mask to LongBuffer
+        val maskBuffer = LongBuffer.wrap(attentionMask)
+        Log.d(TAG, "Attention mask details: ${maskBuffer.array().contentToString()}")
+
+        val outputBuffer = FloatBuffer.allocate(MAX_SEQUENCE_LENGTH * vocab.size)
+
+        try {
+            Log.d(TAG, "Running TFLite inference")
+            tflite.runForMultipleInputsOutputs(
+                arrayOf(maskBuffer, inputBuffer),
+                mapOf(0 to outputBuffer)
+            )
+            Log.d(TAG, "TFLite inference completed successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during TFLite inference", e)
+            return "Error during inference: ${e.message}"
+        }
+
+        val predictions = Utils.getTopPredictions(
+            outputBuffer,
+            vocab,
+            maskPosition,
+        )
+
+        return predictions.joinToString(", ")
+    }
+}
+
+@Composable
+fun MainScreen(onInference: (String) -> String) {
+    var input by remember { mutableStateOf("") }
+    var result by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        TextField(
+            value = input,
+            onValueChange = { input = it },
+            label = { Text("Enter a sentence") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(onClick = { result = onInference(input) }) {
+            Text("Perform Inference")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text("Result: $result")
+    }
+}
