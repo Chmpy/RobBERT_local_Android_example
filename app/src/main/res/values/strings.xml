@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">RobBERT_local_example</string>
+    <string name="process_text_action_name">Inference</string>
 </resources>
