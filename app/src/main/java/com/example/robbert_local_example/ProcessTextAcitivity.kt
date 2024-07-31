@@ -61,7 +61,9 @@ class ProcessTextActivity : Activity() {
         }
 
         // Perform inference and get the top prediction, then replace the mask token with the prediction
-        val feedback = performInference(selectedText).split(", ").first()
+        var feedback = performInference(selectedText).split(", ").first()
+        // Normalize the feedback to non-vocab words (without the Ġ prefix)
+        feedback = feedback.replace("Ġ", "")
         val feedbackText = selectedText.split(" ").toMutableList().apply {
             set(maskPosition, feedback)
         }.joinToString(" ")

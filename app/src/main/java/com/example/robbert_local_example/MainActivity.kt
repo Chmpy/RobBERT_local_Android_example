@@ -124,11 +124,13 @@ class MainActivity : ComponentActivity() {
             return "Error during inference: ${e.message}"
         }
 
-        val predictions = Utils.getTopPredictions(
+        var predictions = Utils.getTopPredictions(
             outputBuffer,
             vocab,
             maskPosition,
         )
+
+        predictions = predictions.map { it.replace("Ġ", "") }
 
         return predictions.joinToString(", ")
     }
@@ -138,6 +140,15 @@ class MainActivity : ComponentActivity() {
 fun MainScreen(onInference: (String) -> String) {
     var input by remember { mutableStateOf("") }
     var result by remember { mutableStateOf("") }
+    var newSentence by remember { mutableStateOf("") }
+
+    fun getTopPrediction(input: String, prediction: String, maskPosition: Int): String {
+        if (maskPosition == 0) return ""
+        val words = input.split(" ")
+        val updatedWords = words.toMutableList()
+        updatedWords[maskPosition] = prediction.split(", ").first()
+        return updatedWords.joinToString(" ")
+    }
 
     Column(
         modifier = Modifier
@@ -155,12 +166,24 @@ fun MainScreen(onInference: (String) -> String) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(onClick = { result = onInference(input) }) {
+        Button(onClick = {
+            result = onInference(input)
+            val (_, maskPosition) = Utils.preprocessInput(input)
+            newSentence = getTopPrediction(input, result, maskPosition ?: 0)
+        }) {
             Text("Perform Inference")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text("Result: $result")
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text("Top predictions: $result")
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("New sentence: $newSentence")
+
+        }
     }
 }

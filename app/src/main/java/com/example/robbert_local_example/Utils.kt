@@ -36,11 +36,27 @@ object Utils {
 
     fun tokenize(sentence: String, vocab: Map<String, Int>): List<Int> {
         Log.d(TAG, "Tokenizing sentence: $sentence")
-        val tokens = sentence.split(" ").map { word ->
-            vocab[word] ?: vocab["<unk>"] ?: 0
+        val maskTokenId = vocab["<mask>"] ?: vocab["<unk>"] ?: 0
+        val pattern = Regex("<mask>|\\w+|[^\\w\\s]")
+        val splitSentence = pattern.findAll(sentence).map { it.value }.toList()
+        Log.d(TAG, "Split sentence: $splitSentence")
+        val tokenizedSentence = mutableListOf<Int>()
+        for (token in splitSentence) {
+            when {
+                token == "<mask>" -> tokenizedSentence.add(maskTokenId)
+                token.matches(Regex("[^\\w\\s]")) -> {
+                    (vocab["Ġ"] ?: vocab["<unk>"])?.let { tokenizedSentence.add(it) }
+                    (vocab[token] ?: vocab["<unk>"])?.let { tokenizedSentence.add(it) }
+                }
+
+                else -> {
+                    (vocab["Ġ$token"] ?: vocab["<unk>"])?.let { tokenizedSentence.add(it) }
+                }
+            }
         }
-        Log.d(TAG, "Tokenized result: $tokens")
-        return tokens
+
+        Log.d(TAG, "Tokenized sentence: $tokenizedSentence")
+        return tokenizedSentence
     }
 
     fun createAttentionMask(tokenCount: Int): LongArray {
