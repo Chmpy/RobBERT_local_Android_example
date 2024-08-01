@@ -83,35 +83,28 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun performInference(input: String): String {
+        // Prepare and tokenize input
         Log.d(TAG, "Starting inference for input: $input")
         val (processedInput, maskPosition) = Utils.preprocessInput(input)
         Log.d(TAG, "Preprocessed input: $processedInput, Mask position: $maskPosition")
-
         if (maskPosition == null) {
             return "No mask token found in input"
         }
-
         var inputIds = Utils.tokenize(processedInput, vocab)
 
-        // Add start and end tokens
+        // Prepare input for inference
         inputIds = listOf(vocab["<s>"] ?: 0) + inputIds + listOf(vocab["</s>"] ?: 0)
-
-        // Pad or truncate to MAX_SEQUENCE_LENGTH
         inputIds = Utils.padOrTruncate(inputIds, MAX_SEQUENCE_LENGTH, vocab["<pad>"] ?: 1)
-
-        // Create attention mask
         val attentionMask = Utils.createAttentionMask(inputIds.size)
 
-        // Convert input to LongBuffer
+        // Create TensorBuffers for input and output
         val inputBuffer = LongBuffer.wrap(inputIds.map { it.toLong() }.toLongArray())
         Log.d(TAG, "Input details: ${inputBuffer.array().contentToString()}")
-
-        // Convert attention mask to LongBuffer
         val maskBuffer = LongBuffer.wrap(attentionMask)
         Log.d(TAG, "Attention mask details: ${maskBuffer.array().contentToString()}")
-
         val outputBuffer = FloatBuffer.allocate(MAX_SEQUENCE_LENGTH * vocab.size)
 
+        // Run inference and get top predictions
         try {
             Log.d(TAG, "Running TFLite inference")
             tflite.runForMultipleInputsOutputs(
@@ -130,6 +123,7 @@ class MainActivity : ComponentActivity() {
             maskPosition,
         )
 
+        // Post-process predictions to remove tokenization artifacts
         predictions = predictions.map { it.replace("Ġ", "") }
 
         return predictions.joinToString(", ")
@@ -142,6 +136,7 @@ fun MainScreen(onInference: (String) -> String) {
     var result by remember { mutableStateOf("") }
     var newSentence by remember { mutableStateOf("") }
 
+    // Function to show the corrected sentence
     fun getTopPrediction(input: String, prediction: String, maskPosition: Int): String {
         if (maskPosition == 0) return ""
         val words = input.split(" ")
