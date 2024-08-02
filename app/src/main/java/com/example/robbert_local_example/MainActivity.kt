@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme {
-                MainScreen(::performInference, ::startSpeedTestActivity)
+                MainScreen(::performInference, ::startSpeedTestService)
             }
         }
     }
@@ -133,8 +133,9 @@ class MainActivity : ComponentActivity() {
         return predictions.joinToString(", ")
     }
 
-    private fun startSpeedTestActivity() {
-        startActivity(Intent(this, SpeedTestActivity::class.java))
+    private fun startSpeedTestService() {
+        val intent = Intent(this, SpeedTestService::class.java)
+        startService(intent)
     }
 }
 

@@ -32,10 +32,7 @@
                 <data android:scheme="https" />
             </intent-filter>
         </activity>
-        <activity android:name=".SpeedTestActivity"
-            android:exported="true"
-            android:theme="@android:style/Theme.NoDisplay">
-        </activity>
+        <service android:name=".SpeedTestService" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
