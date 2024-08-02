@@ -51,6 +51,7 @@ class SpeedTestActivity : Activity() {
             }
         }
         Log.d(TAG, "Total time taken: $totalTime s")
+        Log.d(TAG, "Average time per sentence: ${"%.3f".format(totalTime / sentences.size)} s")
         Toast.makeText(this, "Total time taken: $totalTime s", Toast.LENGTH_SHORT).show()
         finish()
     }
