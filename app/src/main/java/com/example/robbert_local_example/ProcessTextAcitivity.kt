@@ -51,7 +51,7 @@ class ProcessTextActivity : Activity() {
     private fun handleSelectedText(selectedText: String) {
 
         Log.d(TAG, "Selected text: $selectedText")
-
+        Toast.makeText(this, "Processing text...", Toast.LENGTH_SHORT).show()
         // Preprocess the input text and get the mask position
         val (_, maskPosition) = Utils.preprocessInput(selectedText)
 
@@ -59,7 +59,6 @@ class ProcessTextActivity : Activity() {
             Toast.makeText(this, "No mask token found in input", Toast.LENGTH_SHORT).show()
             return
         }
-
         // Perform inference and get the top prediction, then replace the mask token with the prediction
         var feedback = performInference(selectedText).split(", ").first()
         // Normalize the feedback to non-vocab words (without the Ġ prefix)
@@ -71,6 +70,7 @@ class ProcessTextActivity : Activity() {
         // Set the result with the processed text
         val intent = Intent(Intent.EXTRA_PROCESS_TEXT)
         intent.putExtra(Intent.EXTRA_PROCESS_TEXT, feedbackText)
+        Toast.makeText(this, "Text processed successfully", Toast.LENGTH_SHORT).show()
         setResult(RESULT_OK, intent)
     }
 
@@ -86,35 +86,28 @@ class ProcessTextActivity : Activity() {
     }
 
     private fun performInference(input: String): String {
+        // Prepare and tokenize input
         Log.d(TAG, "Starting inference for input: $input")
         val (processedInput, maskPosition) = Utils.preprocessInput(input)
         Log.d(TAG, "Preprocessed input: $processedInput, Mask position: $maskPosition")
-
         if (maskPosition == null) {
             return "No mask token found in input"
         }
-
         var inputIds = Utils.tokenize(processedInput, vocab)
 
-        // Add start and end tokens
+        // Prepare input for inference
         inputIds = listOf(vocab["<s>"] ?: 0) + inputIds + listOf(vocab["</s>"] ?: 0)
-
-        // Pad or truncate to MAX_SEQUENCE_LENGTH
         inputIds = Utils.padOrTruncate(inputIds, MAX_SEQUENCE_LENGTH, vocab["<pad>"] ?: 1)
-
-        // Create attention mask
         val attentionMask = Utils.createAttentionMask(inputIds.size)
 
-        // Convert input to LongBuffer
+       // Create TensorBuffers for input and output
         val inputBuffer = LongBuffer.wrap(inputIds.map { it.toLong() }.toLongArray())
         Log.d(TAG, "Input details: ${inputBuffer.array().contentToString()}")
-
-        // Convert attention mask to LongBuffer
         val maskBuffer = LongBuffer.wrap(attentionMask)
         Log.d(TAG, "Attention mask details: ${maskBuffer.array().contentToString()}")
-
         val outputBuffer = FloatBuffer.allocate(MAX_SEQUENCE_LENGTH * vocab.size)
 
+        // Run inference and get top predictions
         try {
             Log.d(TAG, "Running TFLite inference")
             tflite.runForMultipleInputsOutputs(
