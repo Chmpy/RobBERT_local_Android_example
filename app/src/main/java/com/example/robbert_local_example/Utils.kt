@@ -1,3 +1,5 @@
+package com.example.robbert_local_example
+
 import android.content.Context
 import android.util.Log
 import com.google.gson.Gson

@@ -1,6 +1,5 @@
 package com.example.robbert_local_example
 
-import Utils
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
